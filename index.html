@@ -596,8 +596,17 @@ footer{background:var(--ink);padding:70px 60px;display:grid;grid-template-column
       <select id="fsitting"><option>First sitting — 6:00 PM</option><option>Second sitting — 9:00 PM</option><option>No preference</option></select>
     </div>
     <div class="form-group"><label>Message (optional)</label><textarea rows="3" id="fmsg" placeholder="Special occasion, dietary notes..."></textarea></div>
-    <button class="form-submit" onclick="handleReserve(this)">Send Reservation Request</button>
-    <p class="form-note">Booking confirmed only upon receipt of our reply. Max 2 weeks in advance.</p>
+    <button class="form-submit" id="form-btn" onclick="handleReserve(this)">Send Reservation Request</button>
+    <p class="form-note" id="form-note">Booking confirmed only upon receipt of our reply. Max 2 weeks in advance.</p>
+    <div id="form-success" style="display:none;text-align:center;padding:32px 20px">
+      <div style="font-size:2rem;margin-bottom:16px">✉</div>
+      <p style="font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--ash);font-style:italic">Request sent!</p>
+      <p style="font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--muted);margin-top:10px">We'll confirm your table by email as soon as possible.</p>
+      <button onclick="resetForm()" style="margin-top:24px;background:none;border:1px solid var(--faint);color:var(--gold);font-family:'Montserrat',sans-serif;font-size:.58rem;letter-spacing:.2em;text-transform:uppercase;padding:10px 24px;cursor:pointer">Make Another Request</button>
+    </div>
+    <div id="form-error" style="display:none;text-align:center;padding:16px;background:rgba(122,28,40,.25);border:1px solid var(--wine);margin-top:12px">
+      <p style="font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--ash)">Something went wrong. Please email us directly at <a href="mailto:restosacreefleur@gmail.com" style="color:var(--gold)">restosacreefleur@gmail.com</a></p>
+    </div>
   </div>
 </div>
 
@@ -702,18 +711,65 @@ function showPanel(id, btn) {
   btn.classList.add('active');
 }
 
-// Reserve form
-function handleReserve(btn) {
-  const name=document.getElementById('fname').value.trim();
-  const email=document.getElementById('femail').value.trim();
-  const date=document.getElementById('fdate').value;
-  if(!name||!email||!date){
-    const orig=btn.textContent; btn.style.background='#7A1C28'; btn.textContent='Please fill in name, email & date';
-    setTimeout(()=>{btn.style.background='';btn.textContent=orig;},2600); return;
+// ── FORMSPREE RESERVATION ──
+
+const FORMSPREE_ENDPOINT = 'https://formspree.io/f/xojzkbye';
+
+async function handleReserve(btn) {
+  const name  = document.getElementById('fname').value.trim();
+  const email = document.getElementById('femail').value.trim();
+  const date  = document.getElementById('fdate').value;
+
+  // Validate
+  if (!name || !email || !date) {
+    const orig = btn.textContent;
+    btn.style.background = '#7A1C28';
+    btn.textContent = 'Please fill in name, email & date';
+    setTimeout(() => { btn.style.background = ''; btn.textContent = orig; }, 2600);
+    return;
   }
-  const s=encodeURIComponent(`Reservation Request — ${date}`);
-  const b=encodeURIComponent(`Hello Sacrée Fleur,\n\nI would like to reserve a table.\n\nName: ${name}\nDate: ${date}\nGuests: ${document.getElementById('fguests').value}\nSitting: ${document.getElementById('fsitting').value}\nMessage: ${document.getElementById('fmsg').value||'N/A'}\n\nThank you,\n${name}`);
-  window.location.href=`mailto:restosacreefleur@gmail.com?subject=${s}&body=${b}`;
+
+  // Loading state
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  document.getElementById('form-error').style.display = 'none';
+
+  const payload = {
+    name,
+    email,
+    date,
+    guests:  document.getElementById('fguests').value,
+    sitting: document.getElementById('fsitting').value,
+    message: document.getElementById('fmsg').value || '—',
+    _subject: `Reservation Request — ${date} — ${name}`
+  };
+
+  try {
+    const res = await fetch(FORMSPREE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      // Show success, hide form fields
+      document.querySelector('.reserve-right').querySelectorAll('.form-group,.form-row,.form-submit,#form-note,.form-title,.form-sub').forEach(el => el.style.display = 'none');
+      document.getElementById('form-success').style.display = 'block';
+    } else {
+      throw new Error('Server error');
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Send Reservation Request';
+    document.getElementById('form-error').style.display = 'block';
+  }
+}
+
+function resetForm() {
+  document.querySelector('.reserve-right').querySelectorAll('.form-group,.form-row,.form-submit,#form-note,.form-title,.form-sub').forEach(el => el.style.display = '');
+  document.getElementById('form-success').style.display = 'none';
+  document.getElementById('form-error').style.display = 'none';
+  ['fname','femail','fdate','fmsg'].forEach(id => document.getElementById(id).value = '');
 }
 
 // Mobile menu toggle (simple)
